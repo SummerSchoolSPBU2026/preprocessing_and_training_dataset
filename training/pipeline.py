@@ -6,10 +6,13 @@ from training.dataset_feature_extractor import DatasetFeatureExtractor
 
 from lion_pytorch import Lion
 from datasets import load_from_disk
-from transformers import WhisperFeatureExtractor, WhisperTokenizer
+from transformers import WhisperFeatureExtractor, WhisperTokenizer, PreTrainedTokenizerFast
 import torch
 from training.utils import check_generation_cache
 from preprocessing.text_normalizer import TextNormalizer
+
+WHISPER_MODEL_NAME = "openai/whisper-tiny"
+DATASET_PATH = "preprocessed_dataset/whisper_prepocessed_dataset.arrow"
 
 WHISPER_MODEL_NAME = "openai/whisper-tiny"
 DATASET_PATH = "preprocessed_dataset/whisper_prepocessed_dataset.arrow"
@@ -23,31 +26,16 @@ feature_extractor = WhisperFeatureExtractor.from_pretrained(
     predict_timestamps=False,
     return_attention_mask=True
 )
-
-# Используется готовый токенизатор WhisperTokenizer, но в будущем будет использоваться кастомный токенизатор Маргариты
-tokenizer = WhisperTokenizer.from_pretrained(
-    WHISPER_MODEL_NAME,
-    language="russian",
-    task="transcribe",
-    predict_timestamps=False
-)
-
-tokenizer.set_prefix_tokens(
-    language="russian",
-    task="transcribe",
-    predict_timestamps=False
+tokenizer = PreTrainedTokenizerFast(
+    tokenizer_file="bpe_tokenizer.json",
+    unk_token="<unk>",
+    pad_token="<pad>",
+    bos_token="<s>",
+    eos_token="</s>",
 )
 
 dataset = load_from_disk(DATASET_PATH)
 print(f"Загружено {len(dataset)} примеров")
-
-dataset["train"] = dataset["train"].select(
-    range(min(16, len(dataset["train"])))
-)
-
-dataset["validation"] = dataset["validation"].select(
-    range(min(4, len(dataset["validation"])))
-)
 
 dataset_builder = DatasetFeatureExtractor(
     feature_extractor=feature_extractor,
@@ -59,7 +47,9 @@ prepared_dataset = dataset_builder.apply(dataset, num_proc=None)
 kda_config = create_kda_config(tokenizer=tokenizer)
 
 model = WhisperKDAModel(
-    config=kda_config,
+    kda_config=kda_config,
+    whisper_model_name=WHISPER_MODEL_NAME,
+    freeze_encoder=True
 ).to(device)
 
 trainable_params = [
@@ -75,11 +65,7 @@ optimizer = Lion(
     weight_decay=0.1,
 )
 
-text_normalizer = TextNormalizer(
-    lowercase=True,
-    replace_yo=True,
-)
-metrics = Metrics(tokenizer, text_normalizer)
+metrics = Metrics(tokenizer)
 
 data_collator = DataCollator(
     feature_extractor=feature_extractor,
