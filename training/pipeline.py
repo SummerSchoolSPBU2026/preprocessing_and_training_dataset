@@ -8,44 +8,99 @@ from lion_pytorch import Lion
 from datasets import load_from_disk
 from transformers import WhisperFeatureExtractor, WhisperTokenizer
 import torch
+from training.utils import check_generation_cache
+from preprocessing.text_normalizer import TextNormalizer
+
+WHISPER_MODEL_NAME = "openai/whisper-tiny"
+DATASET_PATH = "preprocessed_dataset/whisper_prepocessed_dataset.arrow"
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-dataset = load_from_disk("preprocessed_dataset/whisper_prepocessed_dataset.arrow")
+feature_extractor = WhisperFeatureExtractor.from_pretrained(
+    WHISPER_MODEL_NAME,
+    language="russian",
+    task="transcribe",
+    predict_timestamps=False,
+    return_attention_mask=True
+)
+
+# Используется готовый токенизатор WhisperTokenizer, но в будущем будет использоваться кастомный токенизатор Маргариты
+tokenizer = WhisperTokenizer.from_pretrained(
+    WHISPER_MODEL_NAME,
+    language="russian",
+    task="transcribe",
+    predict_timestamps=False
+)
+
+tokenizer.set_prefix_tokens(
+    language="russian",
+    task="transcribe",
+    predict_timestamps=False
+)
+
+dataset = load_from_disk(DATASET_PATH)
 print(f"Загружено {len(dataset)} примеров")
 
+dataset["train"] = dataset["train"].select(
+    range(min(16, len(dataset["train"])))
+)
+
+dataset["validation"] = dataset["validation"].select(
+    range(min(4, len(dataset["validation"])))
+)
+
+dataset_builder = DatasetFeatureExtractor(
+    feature_extractor=feature_extractor,
+    tokenizer=tokenizer,
+)
+
+prepared_dataset = dataset_builder.apply(dataset, num_proc=None)
+
+kda_config = create_kda_config(tokenizer=tokenizer)
+
 model = WhisperKDAModel(
-    kda_config=create_kda_config()
-    whisper_model_name="openai/whisper-tiny",
-    freeze_encoder=True).to(device)
+    config=kda_config,
+).to(device)
+
+trainable_params = [
+    param
+    for param in model.parameters()
+    if param.requires_grad
+]
 
 optimizer = Lion(
-    model.parameters(),
+    trainable_params,
     lr=3e-5,
     betas=(0.9, 0.99),
     weight_decay=0.1,
 )
 
-dataset_builder = DatasetFeatureExtractor(
-    feature_extractor=WhisperFeatureExtractor.from_pretrained("openai/whisper-tiny"),
-    tokenizer=my_tokenizer,  # сейчас WhisperTokenizer, потом — токенизатор Маргариты
+text_normalizer = TextNormalizer(
+    lowercase=True,
+    replace_yo=True,
 )
+metrics = Metrics(tokenizer, text_normalizer)
 
-feature_extractor = WhisperFeatureExtractor.from_pretrained(...)
-tokenizer = WhisperTokenizer.from_pretrained(...)
-
-metrics = Metrics(tokenizer)
 data_collator = DataCollator(
     feature_extractor=feature_extractor,
     tokenizer=tokenizer,
+    decoder_start_token_id=kda_config.decoder_start_token_id,
+)
+
+check_generation_cache(
+    model=model,
+    prepared_dataset=prepared_dataset,
+    data_collator=data_collator,
+    device=device,
 )
 
 trainer = Trainer(
     model=model,
     optimizer=optimizer,
-    dataset=dataset,
+    dataset=prepared_dataset,
     data_collator=data_collator,
     metrics=metrics,
     tokenizer=tokenizer,
 )
+
 trainer.train()

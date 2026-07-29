@@ -33,7 +33,7 @@ class Trainer:
             output_dir=self.output_dir,
             per_device_train_batch_size=16,
             per_device_eval_batch_size=16,
-            learning_rate=1e-5, # придет от артемия
+            learning_rate=3e-5,
             num_train_epochs=20,
             predict_with_generate=True,
             eval_strategy="epoch",
@@ -42,13 +42,15 @@ class Trainer:
             logging_steps=100,
             fp16=torch.cuda.is_available(),
             load_best_model_at_end=True,
-            metric_for_best_model="wer",
+            metric_for_best_model="wer", # "eval_loss"
             greater_is_better=False,
+            generation_max_length=448,
+            max_steps=2, # Для smoke-test
         )
 
         self.trainer = Seq2SeqTrainer(
             model=self.model,
-            optimizers=self.optimizer,
+            optimizers=(self.optimizer, None),
             args=training_args,
             train_dataset=self.train_dataset,
             eval_dataset=self.eval_dataset,
