@@ -8,6 +8,11 @@ from lion_pytorch import Lion
 from datasets import load_from_disk
 from transformers import WhisperFeatureExtractor, WhisperTokenizer, PreTrainedTokenizerFast
 import torch
+from training.utils import check_generation_cache
+from preprocessing.text_normalizer import TextNormalizer
+
+WHISPER_MODEL_NAME = "openai/whisper-tiny"
+DATASET_PATH = "preprocessed_dataset/whisper_prepocessed_dataset.arrow"
 
 WHISPER_MODEL_NAME = "openai/whisper-tiny"
 DATASET_PATH = "preprocessed_dataset/whisper_prepocessed_dataset.arrow"
@@ -65,6 +70,14 @@ metrics = Metrics(tokenizer)
 data_collator = DataCollator(
     feature_extractor=feature_extractor,
     tokenizer=tokenizer,
+    decoder_start_token_id=kda_config.decoder_start_token_id,
+)
+
+check_generation_cache(
+    model=model,
+    prepared_dataset=prepared_dataset,
+    data_collator=data_collator,
+    device=device,
 )
 
 trainer = Trainer(

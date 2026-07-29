@@ -2,8 +2,9 @@ import numpy as np
 import evaluate
 
 class Metrics:
-    def __init__(self, tokenizer):
+    def __init__(self, tokenizer, text_normalizer):
         self.tokenizer = tokenizer
+        self.text_normalizer = text_normalizer
         self.wer_metric = evaluate.load("wer")
         self.cer_metric = evaluate.load("cer")
 
@@ -27,6 +28,16 @@ class Metrics:
             labels,
             skip_special_tokens=True,
         )
+
+        prediction_text = [
+            self.text_normalizer.normalize_text(text)
+            for text in prediction_text
+        ]
+
+        reference_text = [
+            self.text_normalizer.normalize_text(text)
+            for text in reference_text
+        ]
 
         wer = self.wer_metric.compute(
             references=reference_text,
