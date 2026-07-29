@@ -14,8 +14,15 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 dataset = load_from_disk("preprocessed_dataset/whisper_prepocessed_dataset.arrow")
 print(f"Загружено {len(dataset)} примеров")
 
+feature_extractor = WhisperFeatureExtractor.from_pretrained("openai/whisper-tiny")
+tokenizer = WhisperTokenizer.from_pretrained(
+    "openai/whisper-tiny",
+    language="russian",
+    task="transcribe",
+)
+
 model = WhisperKDAModel(
-    kda_config=create_kda_config()
+    kda_config=create_kda_config(tokenizer),
     whisper_model_name="openai/whisper-tiny",
     freeze_encoder=True).to(device)
 
@@ -27,12 +34,11 @@ optimizer = Lion(
 )
 
 dataset_builder = DatasetFeatureExtractor(
-    feature_extractor=WhisperFeatureExtractor.from_pretrained("openai/whisper-tiny"),
-    tokenizer=my_tokenizer,  # сейчас WhisperTokenizer, потом — токенизатор Маргариты
+    feature_extractor=feature_extractor,
+    tokenizer=tokenizer
 )
 
-feature_extractor = WhisperFeatureExtractor.from_pretrained(...)
-tokenizer = WhisperTokenizer.from_pretrained(...)
+dataset = dataset_builder.apply(dataset)
 
 metrics = Metrics(tokenizer)
 data_collator = DataCollator(
