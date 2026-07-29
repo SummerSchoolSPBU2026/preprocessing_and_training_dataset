@@ -179,7 +179,9 @@ dataset = load_from_disk("preprocessed_dataset/whisper_prepocessed_dataset.arrow
 print(f"Загружено {len(dataset)} примеров")
 
 whisper_validator = WhisperBaseline()
-sample = dataset["train"].select(range(500))
-whisper_validator.evaluate(sample)
-whisper_validator.print_report()
-whisper_validator.save_csv()
+
+for split in dataset.keys():
+    print(f"\nEvaluating {split}...")
+    whisper_validator.evaluate(dataset[split])
+    whisper_validator.print_report()
+    whisper_validator.save_csv(f"{split}_results.csv")
