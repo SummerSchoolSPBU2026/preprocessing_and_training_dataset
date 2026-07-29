@@ -8,12 +8,14 @@ class DatasetFeatureExtractor:
                  audio_column="audio",
                  text_column="normalized_sentence",
                  sampling_rate=16000,
+                 max_target_length=448,
                  feature_extractor=None,
                  tokenizer=None,
                  ):
         self.audio_column = audio_column
         self.text_column = text_column
         self.sampling_rate = sampling_rate
+        self.max_target_length = max_target_length
         self.feature_extractor = (feature_extractor
                                   or WhisperFeatureExtractor.from_pretrained(
                     "openai/whisper-tiny"))
@@ -39,14 +41,23 @@ class DatasetFeatureExtractor:
         audio = example[self.audio_column]
         input_features = self.feature_extractor(
             audio["array"],
-            sampling_rate=audio["sampling_rate"]
-        ).input_features[0]
+            sampling_rate=audio["sampling_rate"],
+            padding="max_length",
+            truncation=True,
+            return_attention_mask=True,
+        )
 
         labels = self.tokenizer(
-            example[self.text_column]
+            example[self.text_column],
+            max_length=self.max_target_length,
+            truncation=True,
         ).input_ids
 
-        return {"input_features": input_features, "labels": labels}
+        return {
+            "input_features": input_features["input_features"][0],
+            "labels": labels, 
+            "attention_mask": input_features["attention_mask"][0]
+        }
 
     def apply(self, dataset: Dataset | DatasetDict, num_proc=None):
         prepared = {}
