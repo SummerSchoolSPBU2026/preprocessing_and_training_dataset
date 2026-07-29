@@ -5,24 +5,24 @@ from transformers import WhisperTokenizer
 
 class DatasetFeatureExtractor:
     def __init__(self,
-                 audio_column="audio",
-                 text_column="normalized_sentence",
-                 sampling_rate=16000,
-                 feature_extractor=None,
-                 tokenizer=None,
-                 ):
+        audio_column="audio",
+        text_column="normalized_sentence",
+        sampling_rate=16000,
+        feature_extractor=None,
+        tokenizer=None,
+    ):
         self.audio_column = audio_column
         self.text_column = text_column
         self.sampling_rate = sampling_rate
         self.feature_extractor = (feature_extractor
-                                  or WhisperFeatureExtractor.from_pretrained(
-                    "openai/whisper-tiny"))
+            or WhisperFeatureExtractor.from_pretrained(
+                "openai/whisper-tiny"))
 
         self.tokenizer = (tokenizer
-                          or WhisperTokenizer.from_pretrained(
-                    "openai/whisper-tiny",
-                    language="russian",
-                    task="transcribe"))
+            or WhisperTokenizer.from_pretrained(
+                "openai/whisper-tiny",
+                language="russian",
+                task="transcribe"))
 
     def _iterate_splits(self, dataset):
         if isinstance(dataset, DatasetDict):
@@ -37,16 +37,21 @@ class DatasetFeatureExtractor:
 
     def _prepare_example(self, example):
         audio = example[self.audio_column]
-        input_features = self.feature_extractor(
+        features = self.feature_extractor(
             audio["array"],
-            sampling_rate=audio["sampling_rate"]
-        ).input_features[0]
+            sampling_rate=audio["sampling_rate"],
+            return_attention_mask=True,
+        )
 
         labels = self.tokenizer(
             example[self.text_column]
         ).input_ids
 
-        return {"input_features": input_features, "labels": labels}
+        return {
+            "input_features": features.input_features[0],
+            "attention_mask": features.attention_mask[0],
+            "labels": labels,
+        }
 
     def apply(self, dataset: Dataset | DatasetDict, num_proc=None):
         prepared = {}

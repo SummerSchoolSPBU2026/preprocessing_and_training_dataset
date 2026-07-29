@@ -50,10 +50,3 @@ class Metrics:
         )
 
         return {"wer": wer, "cer": cer}
-# потом в trainer.py создаю
-# metrics = Metrics(tokenizer)
-# и передаю в
-# trainer = Seq2SeqTrainer(
-#     ...,
-#     compute_metrics=metrics.compute,
-# )

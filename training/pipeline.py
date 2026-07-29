@@ -14,9 +14,6 @@ from preprocessing.text_normalizer import TextNormalizer
 WHISPER_MODEL_NAME = "openai/whisper-tiny"
 DATASET_PATH = "preprocessed_dataset/whisper_prepocessed_dataset.arrow"
 
-WHISPER_MODEL_NAME = "openai/whisper-tiny"
-DATASET_PATH = "preprocessed_dataset/whisper_prepocessed_dataset.arrow"
-
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 feature_extractor = WhisperFeatureExtractor.from_pretrained(
@@ -49,7 +46,6 @@ kda_config = create_kda_config(tokenizer=tokenizer)
 model = WhisperKDAModel(
     kda_config=kda_config,
     whisper_model_name=WHISPER_MODEL_NAME,
-    freeze_encoder=True
 ).to(device)
 
 trainable_params = [
@@ -65,7 +61,12 @@ optimizer = Lion(
     weight_decay=0.1,
 )
 
-metrics = Metrics(tokenizer)
+text_normalizer = TextNormalizer(
+    lowercase=True,
+    replace_yo=True,
+)
+
+metrics = Metrics(tokenizer, text_normalizer)
 
 data_collator = DataCollator(
     feature_extractor=feature_extractor,
